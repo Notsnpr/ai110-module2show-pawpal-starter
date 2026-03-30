@@ -19,6 +19,20 @@
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
 
+**Yes, the design changed significantly as we clarified the system's user:**
+
+1. **Centralized Schedule**: Initially, the Schedule was meant to be per-owner. We changed it to be a single centralized system because the front desk person is the actual user—they need to see ALL tasks across ALL owners and pets to detect and resolve conflicts.
+
+2. **Task-Pet Relationship**: We added a direct reference from Task to the Pet it belongs to. This allows the Schedule to trace back which pet has conflicting tasks, enabling the front desk to quickly identify and resolve issues like "John's Fluffy has two tasks at 9:30 AM."
+
+3. **Time Format**: We changed from string time (e.g., "9:30") to Python's `time` object. This makes comparing times for conflicts much easier and more reliable.
+
+4. **Owner Identity**: Added a `name` attribute to Owner so the front desk can identify owners in conflict reports.
+
+5. **Task Management on Pet**: Added an `add_task()` method directly to Pet so tasks can be managed at the pet level, improving encapsulation.
+
+**Why we made these changes**: Once we understood that the front desk person is the system operator (not the pet owner), we realized the architecture needed to support a centralized, conflict-aware view of all tasks. The initial design was too fragmented and didn't provide the front desk with the visibility they need.
+
 ---
 
 ## 2. Scheduling Logic and Tradeoffs
