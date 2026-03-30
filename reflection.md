@@ -5,7 +5,14 @@
 **a. Initial design**
 
 - Briefly describe your initial UML design.
+- **A user should be able to add a pet**
+- **A user should be able to scheduel a task for a pet**
+- **The user should be able to see todays tasks**
 - What classes did you include, and what responsibilities did you assign to each?
+- **Pet Class which should contain tasks assgined to it**
+- **Tasks Class which should contain name of task and what time said task is set for**
+- **Scheduel class which should contain the order of what tasks are for the specific day**
+- **Owner class which should contain which pet belongs to them**
 
 **b. Design changes**
 
