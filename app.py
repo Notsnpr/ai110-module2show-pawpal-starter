@@ -4,6 +4,21 @@ from datetime import time
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
+
+def task_rows(tasks):
+    """Convert Task objects into table-ready dictionaries."""
+    return [
+        {
+            "time": task.get_time().strftime("%H:%M"),
+            "task": task.get_description(),
+            "pet": task.get_pet().get_identifier(),
+            "owner": task.get_pet().get_owner().get_name(),
+            "frequency": task.get_frequency(),
+            "status": "completed" if task.is_completed() else "pending",
+        }
+        for task in tasks
+    ]
+
 st.title("🐾 PawPal+")
 
 st.markdown(
@@ -133,30 +148,50 @@ st.divider()
 st.subheader("Build Schedule")
 st.caption("This now renders data directly from your Schedule object.")
 
+if "show_schedule" not in st.session_state:
+    st.session_state.show_schedule = False
+
 if st.button("Generate schedule"):
-    scheduled_tasks = sorted(st.session_state.schedule.get_tasks_info(), key=lambda t: t.get_time())
+    st.session_state.show_schedule = True
+
+if st.session_state.show_schedule:
+    schedule = st.session_state.schedule
+    scheduled_tasks = schedule.get_tasks_sorted_by_time()
+
     if not scheduled_tasks:
         st.info("No scheduled tasks yet.")
     else:
-        st.write("Today's Schedule")
-        st.table(
-            [
-                {
-                    "time": task.get_time().strftime("%H:%M"),
-                    "task": task.get_description(),
-                    "pet": task.get_pet().get_identifier(),
-                    "owner": task.get_pet().get_owner().get_name(),
-                    "frequency": task.get_frequency(),
-                    "status": "completed" if task.is_completed() else "pending",
-                }
-                for task in scheduled_tasks
-            ]
-        )
+        totals_col, completed_col, pending_col = st.columns(3)
+        totals_col.metric("Total Tasks", len(schedule.get_tasks_info()))
+        completed_col.metric("Completed", len(schedule.get_completed_tasks()))
+        pending_col.metric("Pending", len(schedule.get_pending_tasks()))
 
-        conflicts = st.session_state.schedule.check_conflicts()
+        st.success("Showing tasks in chronological order.")
+        st.write("Today's Schedule")
+        st.table(task_rows(scheduled_tasks))
+
+        filter_col1, filter_col2 = st.columns(2)
+        pet_filter = filter_col1.selectbox("Filter by pet", ["All pets"] + pet_options)
+        status_filter = filter_col2.selectbox("Filter by status", ["all", "pending", "completed"])
+
+        filtered_tasks = schedule.filter_tasks_by_status_or_pet_name(
+            status=None if status_filter == "all" else status_filter,
+            pet_name=None if pet_filter == "All pets" else pet_filter,
+        )
+        filtered_tasks = sorted(filtered_tasks, key=lambda task: task.get_time())
+
+        if filtered_tasks:
+            st.table(task_rows(filtered_tasks))
+            st.success(f"{len(filtered_tasks)} task(s) match your current filters.")
+        else:
+            st.warning("No tasks match the selected filters.")
+
+        conflicts = schedule.check_conflicts()
         if conflicts:
-            st.error("Scheduling conflicts found:")
-            for conflict in conflicts:
-                st.write(f"- {conflict}")
+            st.warning(f"Scheduling warning: {len(conflicts)} conflict(s) detected.")
+            with st.expander("Review conflicts and quick fix tips", expanded=True):
+                for idx, conflict in enumerate(conflicts, start=1):
+                    st.write(f"{idx}. {conflict}")
+                st.caption("Try moving one of the overlapping tasks by 15-30 minutes to avoid missed care steps.")
         else:
             st.success("No scheduling conflicts detected.")

@@ -31,6 +31,22 @@ Recent backend improvements include:
 - Recurring task support where daily/weekly tasks auto-create the next pending instance when completed.
 - Lightweight conflict warnings when two tasks share the same start time (same pet or different pets).
 
+## Features
+
+- Chronological task sorting: tasks are ordered by start time so owners can follow a clear day plan.
+- Centralized schedule with pet sync: adding a task to the scheduler also adds it to that pet's assigned task list.
+- Conflict warnings for duplicate times: overlaps are flagged for both same-pet conflicts and cross-pet time overlaps.
+- Completion tracking: tasks can be marked complete/incomplete and queried by status.
+- Recurrence support: daily and weekly frequencies are supported, with one-time tasks handled separately.
+- Auto-generation of next recurring task: completing daily/weekly tasks automatically creates the next pending occurrence.
+- Day-based recurrence expansion: schedule can return tasks for a specific day using daily, weekday, and weekly:day rules.
+- Flexible filtering: tasks can be filtered by pet name and status with normalized input handling.
+- Schedule health summary in UI: app shows total/completed/pending metrics with sorted and filtered tables.
+
+## 📸 Demo
+
+<a href="pawpalplus.png" target="_blank"><img src='pawpalplus.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+
 ## Getting started
 
 ### Setup
