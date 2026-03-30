@@ -84,13 +84,23 @@ def main():
         pet=buddy,
         frequency="daily"
     )
+
+    # Buddy overlap task at same time as Playtime (10:00)
+    task6 = Task(
+        description="Medication",
+        time=time(10, 0),
+        instructions="Give heartworm medication",
+        pet=buddy,
+        frequency="daily"
+    )
     
-    # Add tasks to schedule
-    schedule.add_task(task1)
-    schedule.add_task(task2)
-    schedule.add_task(task3)
-    schedule.add_task(task4)
-    schedule.add_task(task5)
+    # Add tasks to schedule intentionally out of time order
+    schedule.add_task(task5)  # 18:00
+    schedule.add_task(task3)  # 09:00
+    schedule.add_task(task2)  # 14:30
+    schedule.add_task(task1)  # 08:00
+    schedule.add_task(task4)  # 10:00
+    schedule.add_task(task6)  # 10:00 (intentional overlap)
     
     # Mark one task as completed
     task1.mark_complete()
@@ -98,11 +108,43 @@ def main():
     # Print today's schedule
     print_schedule_header()
     
-    # Display all tasks sorted by time
-    tasks_sorted = sorted(schedule.get_tasks_info(), key=lambda t: t.get_time())
+    # Display all tasks sorted by time using the schedule helper
+    tasks_sorted = schedule.get_tasks_sorted_by_time()
     
     for i, task in enumerate(tasks_sorted, 1):
         print_task_details(task, i)
+
+    # Demonstrate filtering helpers
+    print("=" * 70)
+    print("FILTERED VIEWS")
+    print("=" * 70)
+
+    print("\nCompleted Tasks:")
+    completed_tasks = schedule.filter_tasks_by_status_or_pet_name(status="completed")
+    if completed_tasks:
+        for i, task in enumerate(completed_tasks, 1):
+            print_task_details(task, i)
+    else:
+        print("  None")
+
+    print("Pending Tasks for Fluffy:")
+    fluffy_pending = schedule.filter_tasks_by_status_or_pet_name(
+        status="pending",
+        pet_name="Fluffy",
+    )
+    if fluffy_pending:
+        for i, task in enumerate(fluffy_pending, 1):
+            print_task_details(task, i)
+    else:
+        print("  None")
+
+    print("Tasks for Buddy (name-only filter):")
+    buddy_tasks = schedule.filter_tasks_by_status_or_pet_name(pet_name="Buddy")
+    if buddy_tasks:
+        for i, task in enumerate(buddy_tasks, 1):
+            print_task_details(task, i)
+    else:
+        print("  None")
     
     # Print summary statistics
     print("=" * 70)

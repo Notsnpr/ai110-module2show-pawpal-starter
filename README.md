@@ -22,6 +22,15 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## Smarter Scheduling
+
+Recent backend improvements include:
+
+- Time-based sorting so schedules always display in chronological order.
+- Flexible filtering by completion status and pet name.
+- Recurring task support where daily/weekly tasks auto-create the next pending instance when completed.
+- Lightweight conflict warnings when two tasks share the same start time (same pet or different pets).
+
 ## Getting started
 
 ### Setup

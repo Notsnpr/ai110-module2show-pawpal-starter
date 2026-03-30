@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List
+from typing import Dict, List, Optional, Tuple
 from datetime import time, datetime
 
 
@@ -135,6 +135,10 @@ class Schedule:
     def get_tasks_info(self):
         """Get information about all scheduled tasks"""
         return self.tasks
+
+    def get_tasks_sorted_by_time(self) -> List[Task]:
+        """Return all tasks sorted by scheduled time"""
+        return sorted(self.tasks, key=lambda task: task.get_time())
     
     def get_tasks_by_pet(self, pet: Pet) -> List[Task]:
         """Get all tasks for a specific pet"""
@@ -150,33 +154,130 @@ class Schedule:
     def get_tasks_by_time(self, target_time: time) -> List[Task]:
         """Get all tasks scheduled for a specific time"""
         return [task for task in self.tasks if task.get_time() == target_time]
+
+    def filter_tasks(self, pet: Optional[Pet] = None, status: Optional[str] = None) -> List[Task]:
+        """Filter tasks by pet and completion status"""
+        pet_name = pet.get_identifier() if pet is not None else None
+        return self._filter_tasks_core(status=status, pet_name=pet_name)
+
+    def filter_tasks_by_status_or_pet_name(
+        self,
+        status: Optional[str] = None,
+        pet_name: Optional[str] = None,
+    ) -> List[Task]:
+        """Filter tasks by completion status and/or pet name"""
+        return self._filter_tasks_core(status=status, pet_name=pet_name)
+
+    def _filter_tasks_core(
+        self,
+        status: Optional[str] = None,
+        pet_name: Optional[str] = None,
+    ) -> List[Task]:
+        """Shared filtering implementation used by public task-filter methods"""
+        filtered_tasks = self.tasks
+
+        normalized_pet_name = pet_name.strip().lower() if pet_name else None
+        normalized_status = self._normalize_status(status)
+
+        if normalized_pet_name is not None:
+            filtered_tasks = [
+                task for task in filtered_tasks
+                if task.get_pet().get_identifier().strip().lower() == normalized_pet_name
+            ]
+
+        if normalized_status == "completed":
+            filtered_tasks = [task for task in filtered_tasks if task.is_completed()]
+        elif normalized_status == "pending":
+            filtered_tasks = [task for task in filtered_tasks if not task.is_completed()]
+
+        return filtered_tasks
+
+    def _normalize_status(self, status: Optional[str]) -> Optional[str]:
+        """Normalize status aliases to completed/pending when recognized"""
+        if status is None:
+            return None
+
+        normalized_status = status.strip().lower()
+        completed_aliases = {"completed", "complete", "done"}
+        pending_aliases = {"pending", "incomplete", "not completed"}
+
+        if normalized_status in completed_aliases:
+            return "completed"
+        if normalized_status in pending_aliases:
+            return "pending"
+        return None
+
+    def get_recurring_tasks(self) -> List[Task]:
+        """Get tasks that recur (all frequencies except 'once')"""
+        return [task for task in self.tasks if task.get_frequency().lower() != "once"]
+
+    def get_tasks_for_day(self, day_name: str) -> List[Task]:
+        """Get tasks that should appear on a specific day"""
+        normalized_day = day_name.lower()
+
+        def appears_on_day(task: Task) -> bool:
+            frequency = task.get_frequency().lower()
+            if frequency in {"daily", "once"}:
+                return True
+            if frequency == normalized_day:
+                return True
+            if frequency.startswith("weekly:"):
+                return frequency.split(":", 1)[1] == normalized_day
+            return False
+
+        day_tasks = [task for task in self.tasks if appears_on_day(task)]
+        return sorted(day_tasks, key=lambda task: task.get_time())
+
+    def _find_conflicting_task_pairs(self) -> List[Tuple[Task, Task]]:
+        """Return task pairs that overlap in time (same or different pets)"""
+        conflicts: List[Tuple[Task, Task]] = []
+
+        tasks_by_time = self._group_tasks_by_time()
+        for grouped_tasks in tasks_by_time.values():
+            if len(grouped_tasks) < 2:
+                continue
+
+            for i, task1 in enumerate(grouped_tasks):
+                for task2 in grouped_tasks[i + 1:]:
+                    conflicts.append((task1, task2))
+
+        return conflicts
+
+    def _group_tasks_by_time(self) -> Dict[time, List[Task]]:
+        """Group tasks by scheduled time for efficient overlap checks"""
+        tasks_by_time: Dict[time, List[Task]] = {}
+        for task in self.tasks:
+            task_time = task.get_time()
+            if task_time not in tasks_by_time:
+                tasks_by_time[task_time] = []
+            tasks_by_time[task_time].append(task)
+        return tasks_by_time
     
     def check_conflicts(self) -> List[str]:
-        """Check for time conflicts in scheduled tasks (same pet, same time)"""
+        """Check for same-time conflicts for tasks across all pets"""
         conflicts = []
-        
-        # Group tasks by pet
-        tasks_by_pet = {}
-        for task in self.tasks:
-            pet_id = task.pet.get_identifier()
-            if pet_id not in tasks_by_pet:
-                tasks_by_pet[pet_id] = []
-            tasks_by_pet[pet_id].append(task)
-        
-        # Check for conflicts within each pet's tasks
-        for pet_id, pet_tasks in tasks_by_pet.items():
-            for i, task1 in enumerate(pet_tasks):
-                for task2 in pet_tasks[i+1:]:
-                    if task1.get_time() == task2.get_time():
-                        pet = task1.get_pet()
-                        owner_name = pet.get_owner().get_name()
-                        conflict_msg = (
-                            f"CONFLICT: {owner_name}'s {pet.get_identifier()} has two tasks "
-                            f"at {task1.get_time().strftime('%H:%M')} - "
-                            f"'{task1.get_description()}' and '{task2.get_description()}'"
-                        )
-                        conflicts.append(conflict_msg)
-        
+
+        for task1, task2 in self._find_conflicting_task_pairs():
+            pet1 = task1.get_pet()
+            pet2 = task2.get_pet()
+            owner1 = pet1.get_owner().get_name()
+            owner2 = pet2.get_owner().get_name()
+
+            if pet1 == pet2:
+                conflict_msg = (
+                    f"CONFLICT (SAME PET): {owner1}'s {pet1.get_identifier()} has two tasks "
+                    f"at {task1.get_time().strftime('%H:%M')} - "
+                    f"'{task1.get_description()}' and '{task2.get_description()}'"
+                )
+            else:
+                conflict_msg = (
+                    f"CONFLICT (TIME OVERLAP): {owner1}'s {pet1.get_identifier()} and "
+                    f"{owner2}'s {pet2.get_identifier()} both have tasks at "
+                    f"{task1.get_time().strftime('%H:%M')} - "
+                    f"'{task1.get_description()}' and '{task2.get_description()}'"
+                )
+            conflicts.append(conflict_msg)
+
         return conflicts
     
     def modify_task(self, task: Task, new_time: time):
@@ -196,8 +297,29 @@ class Schedule:
         return [task for task in self.tasks if task.get_frequency() == "daily"]
     
     def mark_task_complete(self, task: Task):
-        """Mark a task as completed"""
+        """Mark a task as completed and spawn next instance for recurring tasks"""
+        if task.is_completed():
+            return
+
         task.mark_complete()
+        if self._is_auto_recurring_frequency(task.get_frequency()):
+            next_task = self._create_next_occurrence(task)
+            self.add_task(next_task)
+
+    def _is_auto_recurring_frequency(self, frequency: str) -> bool:
+        """Return True when a frequency should auto-create its next occurrence"""
+        normalized_frequency = frequency.strip().lower()
+        return normalized_frequency == "daily" or normalized_frequency.startswith("weekly")
+
+    def _create_next_occurrence(self, task: Task) -> Task:
+        """Create a new pending task instance representing the next recurrence"""
+        return Task(
+            description=task.get_description(),
+            time=task.get_time(),
+            instructions=task.get_instructions(),
+            pet=task.get_pet(),
+            frequency=task.get_frequency(),
+        )
     
     def remove_task(self, task: Task):
         """Remove a task from the schedule"""

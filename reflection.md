@@ -42,10 +42,26 @@
 - What constraints does your scheduler consider (for example: time, priority, preferences)?
 - How did you decide which constraints mattered most?
 
+**Our scheduler currently prioritizes time consistency, conflict visibility, and operational clarity over advanced optimization.**
+
+The main constraints it considers are:
+
+1. **Scheduled time (`time` object)**: Tasks are sorted chronologically so the front desk can view the day in execution order.
+2. **Conflict checks at the same time**: The system flags warnings when two tasks share the same start time, for both the same pet and different pets.
+3. **Completion status**: Tasks are tracked as pending vs completed so staff can monitor progress quickly.
+4. **Pet/owner association**: Every task is tied to a pet (and therefore owner), which allows filtering and clear conflict messages.
+5. **Recurrence frequency**: Daily and weekly tasks automatically generate a next instance after completion to keep recurring care on schedule.
+
+We treated these as highest priority because they map directly to front-desk workflow: see what is next, detect collisions early, and keep recurring care from being forgotten. We deferred lower-priority constraints (owner preferences, task duration balancing, and weighted priorities) to keep the first version reliable and easy to maintain.
+
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
 - Why is that tradeoff reasonable for this scenario?
+
+**One key tradeoff is that conflict detection only checks for exact same start times, not overlapping durations.**
+
+For example, if one task runs from 10:00-10:30 and another starts at 10:15, the current scheduler will not detect that overlap unless both are set to exactly 10:00. This is reasonable for this version because tasks currently store only a single time (not duration), and the goal was to provide lightweight, reliable warnings without adding complex time-interval logic. It keeps the system simple, fast, and easy to explain for front-desk use, while still catching the most obvious scheduling collisions.
 
 ---
 
