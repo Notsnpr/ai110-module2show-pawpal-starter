@@ -353,6 +353,153 @@ class TestScheduleIntegration:
         # Assert
         assert len(schedule.get_tasks_info()) == 2, "Repeated completion should not spawn extra occurrences"
 
+    def test_sorting_with_same_time_preserves_insertion_order(self):
+        """Verify sorting is deterministic when multiple tasks share the same time"""
+        # Arrange
+        schedule = Schedule()
+        owner = Owner("Casey")
+        pet = Pet("Piper", "Mixed", 3, owner)
+
+        first_same_time = Task("First", time(9, 0), "First task", pet)
+        second_same_time = Task("Second", time(9, 0), "Second task", pet)
+        third_same_time = Task("Third", time(9, 0), "Third task", pet)
+
+        # Act
+        schedule.add_task(first_same_time)
+        schedule.add_task(second_same_time)
+        schedule.add_task(third_same_time)
+        sorted_tasks = schedule.get_tasks_sorted_by_time()
+
+        # Assert
+        assert sorted_tasks == [first_same_time, second_same_time, third_same_time], (
+            "Tasks with identical times should remain in insertion order"
+        )
+
+    def test_three_tasks_same_time_yields_all_conflict_pairs(self):
+        """Verify conflict detection returns all unique pairs for 3 overlapping tasks"""
+        # Arrange
+        schedule = Schedule()
+        owner = Owner("Morgan")
+        pet1 = Pet("A", "Dog", 2, owner)
+        pet2 = Pet("B", "Cat", 4, owner)
+        pet3 = Pet("C", "Bird", 1, owner)
+
+        schedule.add_task(Task("Task A", time(11, 0), "A", pet1))
+        schedule.add_task(Task("Task B", time(11, 0), "B", pet2))
+        schedule.add_task(Task("Task C", time(11, 0), "C", pet3))
+
+        # Act
+        conflicts = schedule.check_conflicts()
+
+        # Assert
+        assert len(conflicts) == 3, "Three same-time tasks should produce 3 unique conflict pairs"
+
+    def test_filter_with_unknown_status_does_not_filter_out_tasks(self):
+        """Verify unrecognized status values are treated as no status filter"""
+        # Arrange
+        schedule = Schedule()
+        owner = Owner("Drew")
+        pet = Pet("Nori", "Cat", 4, owner)
+        task1 = Task("Feed", time(8, 0), "Breakfast", pet)
+        task2 = Task("Play", time(17, 0), "Laser toy", pet)
+
+        schedule.add_task(task1)
+        schedule.add_task(task2)
+        task1.mark_complete()
+
+        # Act
+        result = schedule.filter_tasks_by_status_or_pet_name(status="donee")
+
+        # Assert
+        assert result == [task1, task2], "Unknown status should not drop tasks"
+
+    def test_filter_by_pet_name_trims_whitespace(self):
+        """Verify pet-name filtering handles leading/trailing whitespace"""
+        # Arrange
+        schedule = Schedule()
+        owner = Owner("Lee")
+        mochi = Pet("Mochi", "Dog", 2, owner)
+        nori = Pet("Nori", "Cat", 5, owner)
+        mochi_task = Task("Walk", time(8, 0), "Morning walk", mochi)
+        nori_task = Task("Feed", time(9, 0), "Breakfast", nori)
+
+        schedule.add_task(mochi_task)
+        schedule.add_task(nori_task)
+
+        # Act
+        result = schedule.filter_tasks_by_status_or_pet_name(pet_name="  mochi  ")
+
+        # Assert
+        assert result == [mochi_task], "Whitespace around pet name should be ignored"
+
+    def test_empty_schedule_helpers_return_empty_lists(self):
+        """Verify query helpers are safe and return empty lists for an empty schedule"""
+        # Arrange
+        schedule = Schedule()
+
+        # Act / Assert
+        assert schedule.get_tasks_sorted_by_time() == [], "Sorted tasks should be empty"
+        assert schedule.get_tasks_for_day("monday") == [], "Day schedule should be empty"
+        assert schedule.get_recurring_tasks() == [], "Recurring tasks should be empty"
+        assert schedule.get_pending_tasks() == [], "Pending tasks should be empty"
+        assert schedule.get_completed_tasks() == [], "Completed tasks should be empty"
+        assert schedule.check_conflicts() == [], "Conflicts should be empty"
+
+    def test_boundary_times_sort_correctly(self):
+        """Verify earliest and latest times are sorted correctly"""
+        # Arrange
+        schedule = Schedule()
+        owner = Owner("Rae")
+        pet = Pet("Luna", "Husky", 4, owner)
+
+        end_of_day_task = Task("Late Check", time(23, 59), "Last task", pet)
+        start_of_day_task = Task("Early Feed", time(0, 0), "First task", pet)
+
+        schedule.add_task(end_of_day_task)
+        schedule.add_task(start_of_day_task)
+
+        # Act
+        sorted_tasks = schedule.get_tasks_sorted_by_time()
+
+        # Assert
+        assert sorted_tasks == [start_of_day_task, end_of_day_task], "00:00 should sort before 23:59"
+
+    def test_remove_task_keeps_schedule_and_pet_lists_in_sync(self):
+        """Verify removing a task removes it from both schedule and pet task list"""
+        # Arrange
+        schedule = Schedule()
+        owner = Owner("Quinn")
+        pet = Pet("Buddy", "Labrador", 6, owner)
+        task = Task("Vet", time(10, 30), "Annual check", pet)
+        schedule.add_task(task)
+
+        # Act
+        schedule.remove_task(task)
+
+        # Assert
+        assert task not in schedule.get_tasks_info(), "Task should be removed from schedule list"
+        assert task not in pet.get_assigned_tasks(), "Task should be removed from pet task list"
+
+    def test_recurring_completion_chain_adds_one_task_per_completion(self):
+        """Verify recurring completion repeatedly creates exactly one next task"""
+        # Arrange
+        schedule = Schedule()
+        owner = Owner("Sky")
+        pet = Pet("Milo", "Beagle", 3, owner)
+        daily_task = Task("Daily Meds", time(7, 0), "Pill with food", pet, frequency="daily")
+        schedule.add_task(daily_task)
+
+        # Act
+        schedule.mark_task_complete(daily_task)
+        second_instance = schedule.get_tasks_info()[1]
+        schedule.mark_task_complete(second_instance)
+
+        # Assert
+        assert len(schedule.get_tasks_info()) == 3, "Each completion should add one next occurrence"
+        assert schedule.get_tasks_info()[0].is_completed() is True, "Original task should be completed"
+        assert schedule.get_tasks_info()[1].is_completed() is True, "Second instance should be completed"
+        assert schedule.get_tasks_info()[2].is_completed() is False, "Newest instance should be pending"
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
